@@ -194,5 +194,17 @@ void DoGETRequest()
       break;
     Serial.write(v);
   }
+
   delay(500);
+
+  if (!client.available() && !client.connected())
+  {
+    Serial.println();
+    Serial.println("disconnecting.");
+    client.stop();
+
+    // do nothing forevermore:
+    for (;;)
+      ;
+  }
 }
