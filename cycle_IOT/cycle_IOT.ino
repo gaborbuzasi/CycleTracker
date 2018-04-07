@@ -124,7 +124,7 @@ void setup()
     Serial.println("wait for SIM card ready");
     delay(1000);
   }
-
+  Serial.println("GRPS attached");
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ...");
 
@@ -169,4 +169,30 @@ void DisplayBatteryLevel()
   sprintf(buff, "is charging = %d", LBattery.isCharging());
   Serial.println(buff);
   delay(1000);
+}
+
+void DoGETRequest()
+{
+  Serial.print("Connecting to : " SITE_URL "...");
+  if (!client.connect(SITE_URL, 80))
+  {
+    Serial.println("FAIL!");
+    return;
+  }
+  Serial.println("done");
+  Serial.print("Sending GET request...");
+  client.println("GET / HTTP/1.1");
+  client.println("Host: " SITE_URL ":80");
+  client.println();
+  Serial.println("done");
+
+  int v;
+  while (client.available())
+  {
+    v = client.read();
+    if (v < 0)
+      break;
+    Serial.write(v);
+  }
+  delay(500);
 }
