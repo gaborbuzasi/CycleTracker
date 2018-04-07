@@ -3,18 +3,34 @@
 #include <LBattery.h>
 #include <LGPRS.h>
 #include <LGPRSClient.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
+#include "Wire.h"
 
 #define SITE_URL "index.hu"
 
+MPU6050 accelgyro;
 LGPRSClient client;
 gpsSentenceInfoStruct info;
 char gpsBuffer[256];
 char batteryBuffer[256];
 const char *phoneNumber = "+447941573861";
+int16_t ax, ay, az;
+float accelx, accely/*,accelz*/,axprev,ayprev/*,azprev*/,diffx,diffy/*,diffz*/;
+
 
 void setup()
 {
+  Wire.begin();   //begin I2c
   Serial.begin(115200);
+
+  // initialize accelerometer
+    Serial.println("Initializing Accelerometer...");
+    accelgyro.initialize();
+
+    // verify connection
+    Serial.println("Testing Accelerometer...");
+    Serial.println(accelgyro.testConnection() ? "Accelerometer connection successful" : "Accelerometer connection failed");
 
   Serial.println("Starting SMS service");
   while (!LSMS.ready()) // Wait for the sim to initialize
@@ -41,9 +57,33 @@ void loop()
   getGPSData();
   delay(1000);
 
+  get_accel();
+
   DoGETRequest();
   delay(1000);
 }
+
+void get_accel() 
+ {
+   accelgyro.getAcceleration(&ax, &ay, &az);
+   accelx = ax / 100;
+   accely = ay / 100;
+   //accelz = az / 100;
+   diffx = abs(((axprev - accelx) / axprev) * 100);
+   diffy = abs(((ayprev - accely) / ayprev) * 100);
+   //diffz = abs(((azprev - accelz) / azprev) * 100);
+   //Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
+   //Serial.print("y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
+   //Serial.print("z AXIS DIFFERENCE : \t"); Serial.print(diffz);Serial.print("%\n");
+   axprev = accelx;
+   ayprev = accely;
+   //azprev = accelz;
+   //Serial.print("accelerometer" "\t");
+   //Serial.print(accelx); Serial.print("\t");
+   //Serial.print(accely); Serial.print("\t");
+   //Serial.print(accelz); Serial.print("\n");
+   delay(10);
+ }
 
 void getGPSData()
 {
