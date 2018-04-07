@@ -23,7 +23,12 @@ namespace TrackerHook.API.Controllers
     [Route("api/sms")]
     public class SmsController : TwilioController
     {
-        private readonly TrackerContext db = new TrackerContext();
+        private readonly TrackerContext _db;
+
+        public SmsController(TrackerContext dbContext)
+        {
+            _db = dbContext;
+        }
 
         [HttpPost]
         public TwiMLResult Index(TwilioSmsHookModel twilioSmsHookModel)
@@ -31,45 +36,81 @@ namespace TrackerHook.API.Controllers
             var body = twilioSmsHookModel.Body;
             Debug.WriteLine($"Message received {body}");
 
-            if (body.ToLower() == "enable")
+            try
             {
-                SendDeviceMessage(body.ToUpper());
+                if (body.ToLower().Contains("enable"))
+                {
+                    if (SendDeviceMessage(body))
+                    {
+                        return SendMessagingResponse("Theft protection successfully enabled.");
+                    }
+                    else
+                    {
+                        return SendMessagingResponse("We're really sorry, but your device isn't registered in our system.");
+                    }
+                }
+                else if (body.ToLower().Contains("disable"))
+                {
+                    if (SendDeviceMessage(body))
+                    {
+                        return SendMessagingResponse("Theft protection successfully disabled.");
+                    }
+                    else
+                    {
+                        return SendMessagingResponse("We're really sorry, but your device isn't registered in our system.");
+                    }
 
-                return SendMessagingResponse("Theft protection successfully enabled.");
+                }
+                else if (body.ToLower().Contains("register"))
+                {
+                    return RegisterDevice(body);
+                }
+
+                var commandReceived = SmsParser.ParseSmsBody(twilioSmsHookModel.Body);
+
+                switch (commandReceived.CommandId)
+                {
+                    case Command.SET_INITIAL_STATE:
+                        return SendMessagingResponse("OK");
+                    case Command.SET_LOCATION:
+                        return SendMessagingResponse("OK");
+                    default:
+                        return SendMessagingResponse("Sorry, what did you mean?");
+                }
             }
-            else if (body.ToLower() == "disable")
+            catch (Exception ex)
             {
-                SendDeviceMessage(body.ToUpper());
+                _db.Logs.Add(new Log
+                {
+                    Error = ex.Message,
+                    Time = DateTime.Now
+                });
 
-                return SendMessagingResponse("Theft protection successfully disabled.");
-            }
-            else if (body.ToLower().Contains("register"))
-            {
-                return RegisterDevice(body);
-            }
-
-            var commandReceived = SmsParser.ParseSmsBody(twilioSmsHookModel.Body);
-
-            switch (commandReceived.CommandId)
-            {
-                case Command.SET_INITIAL_STATE:
-                    return SendMessagingResponse("OK");
-                case Command.SET_LOCATION:
-                    return SendMessagingResponse("OK");
-                default:
-                    return SendMessagingResponse("Sorry, what did you mean?");
+                return SendMessagingResponse("I'm sorry, we did not quite catch that.");
             }
         }
 
         private TwiMLResult RegisterDevice(string body)
         {
-            var data = body.Split(' ');
-            var devicePhoneNumber = data[1];
-            var deviceNickName = data[2];
-
-
-
             var response = new MessagingResponse();
+            var data = body.Split(' ');
+            var devicePhoneNumber = data[1].Trim();
+            var deviceNickName = data[2].Trim().ToLower();
+
+            if (_db.Trackers.Any(x => x.DeviceNickName == deviceNickName))
+            {
+                response.Message("A device with that name is already registered. Please use another one.");
+                return TwiML(response);
+            }
+
+            _db.Trackers.Add(new Tracker
+            {
+                DeviceNickName = deviceNickName,
+                DevicePhoneNumber = devicePhoneNumber,
+            });
+
+            _db.SaveChanges();
+
             response.Message($"Your device {deviceNickName} with number {devicePhoneNumber} has been successfully registered");
             return TwiML(response);
         }
@@ -80,8 +121,6 @@ namespace TrackerHook.API.Controllers
             var messagingResponse = new MessagingResponse();
             messagingResponse.Message(message);
             return TwiML(messagingResponse);
-
-            // +882360003082111
         }
 
         [NonAction]
@@ -102,25 +141,41 @@ namespace TrackerHook.API.Controllers
             Console.WriteLine(message.Sid);
         }
 
-        private void SendDeviceMessage(string message)
+        private bool SendDeviceMessage(string message)
         {
-            using (var client = new HttpClient())
-            {
-                var sms = new MokanixSmsModel
-                {
-                    message = message
-                };
+            var changeDeviceStatusMessage = message.Split(' ');
+            var commandForDevice = changeDeviceStatusMessage[0].Trim().ToLower();
+            var nickname = changeDeviceStatusMessage[1].Trim().ToLower();
+            var phoneNumberOfDevice = _db.Trackers.FirstOrDefault(x => x.DeviceNickName.ToLower() == nickname);
 
-                client.BaseAddress = new Uri("https://mokanix.io/v1/assets/8944501101188633318/sms");
-                client.DefaultRequestHeaders.Add("X-API-KEY", "t-c4d088c8-5dca-4cac-9fbb-8f7e507909a8");
-                var response = client.PostAsJsonAsync("https://mokanix.io/v1/assets/8944501101188633318/sms", sms).Result;
-                if (response.IsSuccessStatusCode)
+            if (phoneNumberOfDevice != null)
+            {
+                using (var client = new HttpClient())
                 {
-                    Console.Write("Success");
+                    var sms = new MokanixSmsModel
+                    {
+                        message = commandForDevice
+                    };
+
+                    client.BaseAddress = new Uri("https://mokanix.io/v1/assets/8944501101188633318/sms");
+                    client.DefaultRequestHeaders.Add("X-API-KEY", "t-c4d088c8-5dca-4cac-9fbb-8f7e507909a8");
+                    var response = client.PostAsJsonAsync("https://mokanix.io/v1/assets/8944501101188633318/sms", sms).Result;
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.Write("Success");
+                    }
+                    else
+                        Console.Write("Error");
+
+                    return true;
                 }
-                else
-                    Console.Write("Error");
             }
+            else
+            {
+                // TODO: raise exception to enabler that device isn't registered.
+                return false;
+            }
+            
         }
     }
 }

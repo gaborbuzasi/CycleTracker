@@ -12,8 +12,11 @@ namespace TrackerHook
         {
 
         }
-            
+
+        public DbSet<Tracker> Trackers { get; set; }
         public DbSet<TrackerEvent> TrackerEvents { get; set; }
+        public DbSet<Log> Logs { get; set; }
+
     }
 
     public class TrackerEvent
@@ -38,4 +41,13 @@ namespace TrackerHook
 
         public ICollection<TrackerEvent> TrackerEvents { get; set; }
     }
+
+    public class Log
+    {
+        [Key]
+        public int Id { get; set; }
+        public string Error { get; set; }
+        public DateTime Time { get; set; }
+    }
+
 }
