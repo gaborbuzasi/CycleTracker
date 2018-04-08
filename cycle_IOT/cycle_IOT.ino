@@ -13,6 +13,7 @@
 #define LOCATION_ARR_SIZE 24
 #define RECEIVED_FROM_NUM_ARR_SIZE 20
 #define ACCEL_TRESHOLD 50
+#define TAMPER_ALERT_SIZE 35
 
 MPU6050 accelgyro;
 LGPRSClient client;
@@ -180,7 +181,9 @@ void get_accel()
     if(currentMillis - previousMillis > interval) 
     {
       isAlertMode = true;
-      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!!"
+      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!"
+      smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
+      SendSMS(phoneNumber, smstext);
     }
   } else isAlertMode = false;
 }
