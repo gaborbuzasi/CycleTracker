@@ -178,7 +178,7 @@ void get_accel()
   //Serial.print(accelz); Serial.print("\n");
   if (diffx >= ACCEL_TRESHOLD or diffy >= ACCEL_TRESHOLD)
   {
-    if(currentMillis - previousMillis > interval) 
+    if(currentmillis - previousMillis > interval) 
     {
       isAlertMode = true;
       smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!"
