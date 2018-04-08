@@ -123,7 +123,7 @@ void loop()
   //checkForAvailableSms();
   delay(1000);
 
-  //get_accel();
+  get_accel();
 
   //DoGETRequest();
 }
