@@ -94,18 +94,25 @@ namespace TrackerHook.API.Controllers
                 switch (commandReceived.CommandId)
                 {
                     case Command.SET_INITIAL_STATE:
-
                         textMessage = "Initial location set";
                         break;
                     case Command.SET_LOCATION:
-                        textMessage = "Your location";
+                        textMessage = $"Your device's location is {commandReceived.Latitude}, {commandReceived.Longitude}";
                         break;
+                    case Command.SET_TAMPER:
+                        textMessage = $"ALERT! Your device is being tampered with. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
+                        break;
+
+                    case Command.SET_THEFT:
+                        textMessage = $"THEFT! Your device has been tampered with for the last 15 seconds, it might be stolen. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
+                        break;
+
                     default:
                         break;
                 }
 
 
-                SendTextMessage(ownerPhoneNumber, textMessage);
+                SendTextMessage(ownerPhoneNumber, $"{DateTime.Now.ToShortTimeString()} - {textMessage}");
                 return SendMessagingResponse("OK");
             }
             else
@@ -207,7 +214,8 @@ namespace TrackerHook.API.Controllers
                 {
                     var sms = new MokanixSmsModel
                     {
-                        message = commandForDevice
+                        message = commandForDevice,
+                        dcs = "0"
                     };
 
                     client.BaseAddress = new Uri("https://mokanix.io/v1/assets/8944501101188633318/sms");

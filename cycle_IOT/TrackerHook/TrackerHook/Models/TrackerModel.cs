@@ -16,6 +16,8 @@ namespace TrackerHook.API.Models
     public enum Command
     {
         SET_INITIAL_STATE,
-        SET_LOCATION
+        SET_LOCATION,
+        SET_TAMPER,
+        SET_THEFT
     }
 }

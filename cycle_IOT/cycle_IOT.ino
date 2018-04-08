@@ -8,11 +8,12 @@
 #include "Wire.h"
 #include <LBT.h>
 #include <LBTServer.h>
+#include <math.h>
 
 #define SITE_URL "index.hu"
 #define LOCATION_ARR_SIZE 24
 #define RECEIVED_FROM_NUM_ARR_SIZE 20
-#define ACCEL_TRESHOLD 50
+#define ACCEL_TRESHOLD 75
 #define TAMPER_ALERT_SIZE 35
 
 MPU6050 accelgyro;
@@ -24,12 +25,13 @@ char* phoneNumber = "+441173257381";
 char* smstext;
 int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
-unsigned long previousmillis = 0;
-long interval = 1000;
+//unsigned long previousmillis = 0;
+unsigned long alertMillis = 0;
+long interval = 15;
 bool isInitialLocationSet = false;
-bool isAlertMode = true;
+bool isAlertMode = false;
 bool isOverrideAlertMode = false;
-bool theftmode = false;
+bool isTheftMode = false;
 
 double latitude = 0.00;
 double longitude = 0.00;
@@ -77,33 +79,20 @@ void setup()
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ...");
 
-  if (!LBTServer.begin((uint8_t*)"BikeTracker"))
-  {
-    Serial.println("Failed to initialise bluetooth");
-  }
-  else
-  {
-    Serial.println("Bluetooth succesfully initialized");
-  }
+//  if (!LBTServer.begin((uint8_t*)"BikeTracker"))
+//  {
+//    Serial.println("Failed to initialise bluetooth");
+//  }
+//  else
+//  {
+//    Serial.println("Bluetooth succesfully initialized");
+//  }
 
   //delay(3000);
 }
 
 void loop()
 {
-
-  if (LBTServer.connected())
-  {
-    isAlertMode = false;
-  }
-  else
-  {
-    isAlertMode = true;
-    // Wait 5 secs and retry forever
-    LBTServer.accept(5);
-  }
-
-
   // put your main code here, to run repeatedly:
   if (!isInitialLocationSet)
   {
@@ -114,17 +103,22 @@ void loop()
     isInitialLocationSet = true;
   }
 
+  get_accel();
+  
   if (isAlertMode) {
-    getGPSData(1);
+    getGPSData(2);
+    char *data = locationDataCopy;
+    SendSMS(phoneNumber, data);
+  }
+
+  if (isAlertMode && isTheftMode) 
+  {
+    getGPSData(3);
     char *data = locationDataCopy;
     SendSMS(phoneNumber, data);
   }
 
   //checkForAvailableSms();
-  delay(1000);
-
-  get_accel();
-
   //DoGETRequest();
 }
 
@@ -158,7 +152,7 @@ void checkForAvailableSms()
 
 void get_accel()
 {
-  unsigned long currentmillis = millis();
+  unsigned long currentmillis = millis() / 1000;
   accelgyro.getAcceleration(&ax, &ay, &az);
   accelx = ax / 100;
   accely = ay / 100;
@@ -166,8 +160,8 @@ void get_accel()
   diffx = abs(((axprev - accelx) / axprev) * 100);
   diffy = abs(((ayprev - accely) / ayprev) * 100);
   //diffz = abs(((azprev - accelz) / azprev) * 100);
-  //Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
-  //Serial.print("y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
+  Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
+  Serial.print("Y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
   //Serial.print("z AXIS DIFFERENCE : \t"); Serial.print(diffz);Serial.print("%\n");
   axprev = accelx;
   ayprev = accely;
@@ -176,17 +170,31 @@ void get_accel()
   //Serial.print(accelx); Serial.print("\t");
   //Serial.print(accely); Serial.print("\t");
   //Serial.print(accelz); Serial.print("\n");
-  if (diffx >= ACCEL_TRESHOLD or diffy >= ACCEL_TRESHOLD)
+  if (!isinf(diffx) && !isinf(diffy) && (diffx >= ACCEL_TRESHOLD || diffy >= ACCEL_TRESHOLD))
   {
-    if(currentmillis - previousmillis > interval) 
+    if (!isAlertMode) 
     {
-      previousmillis = currentmillis;
+      Serial.println("Alert mode enabled");
       isAlertMode = true;
-      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!";
-      //smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
-      SendSMS(phoneNumber, smstext);
+      alertMillis = millis() / 1000;
     }
-  } else isAlertMode = false;
+    
+    if(!isTheftMode && isAlertMode && (currentmillis - alertMillis > interval)) 
+    {
+      Serial.println("Theft mode enabled");
+      isTheftMode = true;
+//      previousmillis = currentmillis;
+//      isAlertMode = true;
+//      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!";
+//      //smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
+//      SendSMS(phoneNumber, smstext);
+    }
+  } 
+  else 
+  {
+    isAlertMode = false;
+    isTheftMode = false;
+  }
 }
 
 void getGPSData(int command)
