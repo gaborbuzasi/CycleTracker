@@ -3,7 +3,7 @@
 ##### Once motion is detected, it sends like location updates via cellular network to the platform and you can view the location of your bike in your phone and on a website.
 
 # Technologies
-- Mediatek InitOne microcontroller
+- Mediatek LinkIt One microcontroller
 - Mokanix Mobile Platform
 - Twilio APIs
 - Google Maps Web APIs
