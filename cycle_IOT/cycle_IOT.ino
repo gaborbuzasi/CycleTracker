@@ -6,6 +6,8 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include "Wire.h"
+#include <LBT.h>
+#include <LBTServer.h>
 
 #define SITE_URL "index.hu"
 #define LOCATION_ARR_SIZE 24
@@ -20,6 +22,8 @@ char* phoneNumber = "+441173257381";
 int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
 bool isInitialLocationSet = false;
+bool isAlertMode = true;
+bool isOverrideAlertMode = false;
 
 double latitude = 0.00;
 double longitude = 0.00;
@@ -56,6 +60,7 @@ void setup()
   {
     delay(1000); // Wait for a second and then try again
   }
+  Serial.println("Successfully started SMS service");
 
   while (!LGPRS.attachGPRS())
   {
@@ -66,11 +71,31 @@ void setup()
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ...");
 
-  delay(3000);
+  if (!LBTServer.begin((uint8_t*)"BikeTracker"))
+  {
+    Serial.println("Failed to initialise bluetooth");
+  }
+  else
+  {
+    Serial.println("Bluetooth succesfully initialized");
+  }
+
+  //delay(3000);
 }
 
 void loop()
 {
+
+  if (LBTServer.connected())
+  {
+    isAlertMode = false;
+  }
+  else
+  {
+    isAlertMode = true;
+    // Wait 5 secs and retry forever
+    LBTServer.accept(5);
+  }
 
 
   // put your main code here, to run repeatedly:
@@ -83,7 +108,13 @@ void loop()
     isInitialLocationSet = true;
   }
 
-  checkForAvailableSms();
+  if (isAlertMode) {
+    getGPSData(1);
+    char *data = locationDataCopy;
+    SendSMS(phoneNumber, data);
+  }
+
+  //checkForAvailableSms();
   delay(1000);
 
   //get_accel();
@@ -113,7 +144,7 @@ void checkForAvailableSms()
 
     LSMS.flush();
   }
-  else 
+  else
   {
     Serial.println("No SMS found.");
   }
