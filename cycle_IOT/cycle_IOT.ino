@@ -21,7 +21,7 @@ gpsSentenceInfoStruct info;
 char gpsBuffer[256];
 char batteryBuffer[256];
 char* phoneNumber = "+441173257381";
-char* smstext = "";
+char* smstext;
 int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
 unsigned long previousmillis = 0;
@@ -178,11 +178,12 @@ void get_accel()
   //Serial.print(accelz); Serial.print("\n");
   if (diffx >= ACCEL_TRESHOLD or diffy >= ACCEL_TRESHOLD)
   {
-    if(currentmillis - previousMillis > interval) 
+    if(currentmillis - previousmillis > interval) 
     {
+      previousmillis = currentmillis;
       isAlertMode = true;
-      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!"
-      smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
+      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!";
+      //smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
       SendSMS(phoneNumber, smstext);
     }
   } else isAlertMode = false;
