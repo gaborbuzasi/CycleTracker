@@ -172,13 +172,13 @@ void get_accel()
   delay(10);
 }
 
-void send_alertsms()
-{
-  if (diffx > 50 or diffy 50)
-  {
-    
-  }
-}
+//void send_alertsms()
+//{
+//  if (diffx > 50 or diffy 50)
+//  {
+//    
+//  }
+//}
 
 void getGPSData(int command)
 {

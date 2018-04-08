@@ -70,25 +70,7 @@ namespace TrackerHook.API.Controllers
                 var commandReceived = SmsParser.ParseSmsBody(body);
                 commandReceived.TrackerId = _db.Trackers.First(x => x.DevicePhoneNumber == receivedFrom).Id;
 
-                switch (commandReceived.CommandId)
-                {
-                    case Command.SET_INITIAL_STATE:
-                        if (SetInitialDeviceLocation(commandReceived) > 0)
-                        {
-                            var ownerPhoneNumber = _db.Trackers.FirstOrDefault(x => x.DevicePhoneNumber == receivedFrom)?.OwnerPhoneNumber;
-                            SendTextMessage(ownerPhoneNumber, "Initial location set.");
-                            return SendMessagingResponse("OK");
-                        }
-                            
-                        else
-                            return SendMessagingResponse("ERROR");
-                        
-                    case Command.SET_LOCATION:
-                        return SendMessagingResponse("OK");
-
-                    default:
-                        return SendMessagingResponse("Sorry, what did you mean?");
-                }
+                return HandleSmsCommandReceived(commandReceived);
             }
             catch (Exception ex)
             {
@@ -102,14 +84,42 @@ namespace TrackerHook.API.Controllers
             }
         }
 
-        private int SetInitialDeviceLocation(TrackerModel command)
+        private TwiMLResult HandleSmsCommandReceived(TrackerModel commandReceived)
+        {
+            if (SetDeviceLocation(commandReceived) > 0)
+            {
+                var ownerPhoneNumber = _db.Trackers.FirstOrDefault(x => x.Id == commandReceived.TrackerId)?.OwnerPhoneNumber;
+                var textMessage = string.Empty;
+
+                switch (commandReceived.CommandId)
+                {
+                    case Command.SET_INITIAL_STATE:
+
+                        textMessage = "Initial location set";
+                        break;
+                    case Command.SET_LOCATION:
+                        textMessage = "Your location";
+                        break;
+                    default:
+                        break;
+                }
+
+
+                SendTextMessage(ownerPhoneNumber, textMessage);
+                return SendMessagingResponse("OK");
+            }
+            else
+                return SendMessagingResponse("ERROR");
+        }
+
+        private int SetDeviceLocation(TrackerModel command)
         {
             int returnValue = 0;
             try
             {
                 _db.TrackerEvents.Add(new TrackerEvent
                 {
-                    IsAlert = false,
+                    IsAlert = command.CommandId == Command.SET_INITIAL_STATE ? false : true,
                     Latitude = double.Parse(command.Latitude),
                     Longitude = double.Parse(command.Longitude),
                     SatellitePrecision = int.Parse(command.SatellitePrecision),
