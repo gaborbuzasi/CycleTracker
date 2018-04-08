@@ -18,6 +18,7 @@ namespace TrackerHook.API.Models
         SET_INITIAL_STATE,
         SET_LOCATION,
         SET_TAMPER,
-        SET_THEFT
+        SET_THEFT,
+        SET_INACTIVITY
     }
 }

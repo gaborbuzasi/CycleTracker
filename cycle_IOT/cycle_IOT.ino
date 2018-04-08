@@ -21,17 +21,18 @@ LGPRSClient client;
 gpsSentenceInfoStruct info;
 char gpsBuffer[256];
 char batteryBuffer[256];
-char* phoneNumber = "+441173257381";
+char* phoneNumber = "+441158245887";
 char* smstext;
 int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
 //unsigned long previousmillis = 0;
 unsigned long alertMillis = 0;
-long interval = 15;
+long interval = 10;
 bool isInitialLocationSet = false;
 bool isAlertMode = false;
 bool isOverrideAlertMode = false;
 bool isTheftMode = false;
+bool isNotifiedOfInactivity = false;
 
 double latitude = 0.00;
 double longitude = 0.00;
@@ -79,14 +80,14 @@ void setup()
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ...");
 
-//  if (!LBTServer.begin((uint8_t*)"BikeTracker"))
-//  {
-//    Serial.println("Failed to initialise bluetooth");
-//  }
-//  else
-//  {
-//    Serial.println("Bluetooth succesfully initialized");
-//  }
+  //  if (!LBTServer.begin((uint8_t*)"BikeTracker"))
+  //  {
+  //    Serial.println("Failed to initialise bluetooth");
+  //  }
+  //  else
+  //  {
+  //    Serial.println("Bluetooth succesfully initialized");
+  //  }
 
   //delay(3000);
 }
@@ -104,21 +105,7 @@ void loop()
   }
 
   get_accel();
-  
-  if (isAlertMode) {
-    getGPSData(2);
-    char *data = locationDataCopy;
-    SendSMS(phoneNumber, data);
-  }
-
-  if (isAlertMode && isTheftMode) 
-  {
-    getGPSData(3);
-    char *data = locationDataCopy;
-    SendSMS(phoneNumber, data);
-  }
-
-  //checkForAvailableSms();
+  checkForAvailableSms();
   //DoGETRequest();
 }
 
@@ -160,8 +147,8 @@ void get_accel()
   diffx = abs(((axprev - accelx) / axprev) * 100);
   diffy = abs(((ayprev - accely) / ayprev) * 100);
   //diffz = abs(((azprev - accelz) / azprev) * 100);
-  Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
-  Serial.print("Y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
+  Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx); Serial.print("%\n");
+  Serial.print("Y AXIS DIFFERENCE : \t"); Serial.print(diffy); Serial.print("%\n");
   //Serial.print("z AXIS DIFFERENCE : \t"); Serial.print(diffz);Serial.print("%\n");
   axprev = accelx;
   ayprev = accely;
@@ -170,28 +157,40 @@ void get_accel()
   //Serial.print(accelx); Serial.print("\t");
   //Serial.print(accely); Serial.print("\t");
   //Serial.print(accelz); Serial.print("\n");
+  Serial.println(isinf(diffx));
   if (!isinf(diffx) && !isinf(diffy) && (diffx >= ACCEL_TRESHOLD || diffy >= ACCEL_TRESHOLD))
   {
-    if (!isAlertMode) 
+    if (!isAlertMode)
     {
+      isNotifiedOfInactivity = false;
       Serial.println("Alert mode enabled");
       isAlertMode = true;
       alertMillis = millis() / 1000;
+
+      getGPSData(2);
+      char *data = locationDataCopy;
+      SendSMS(phoneNumber, data);
     }
-    
-    if(!isTheftMode && isAlertMode && (currentmillis - alertMillis > interval)) 
+
+    if (!isTheftMode && isAlertMode && (currentmillis - alertMillis > interval))
     {
       Serial.println("Theft mode enabled");
       isTheftMode = true;
-//      previousmillis = currentmillis;
-//      isAlertMode = true;
-//      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!";
-//      //smstext.toCharArray(smstext, TAMPER_ALERT_SIZE);
-//      SendSMS(phoneNumber, smstext);
+      getGPSData(3);
+      char *data = locationDataCopy;
+      SendSMS(phoneNumber, data);
     }
-  } 
-  else 
+  }
+  else
   {
+    if ((isAlertMode || isTheftMode) && !isNotifiedOfInactivity)
+    {
+      getGPSData(4);
+      char *data = locationDataCopy;
+      SendSMS(phoneNumber, data);
+      isNotifiedOfInactivity = true;
+    }
+
     isAlertMode = false;
     isTheftMode = false;
   }

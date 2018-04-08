@@ -94,17 +94,23 @@ namespace TrackerHook.API.Controllers
                 switch (commandReceived.CommandId)
                 {
                     case Command.SET_INITIAL_STATE:
-                        textMessage = "Initial location set";
+                        textMessage = $"Initial location set - {commandReceived.Latitude}, {commandReceived.Longitude}";
                         break;
                     case Command.SET_LOCATION:
-                        textMessage = $"Your device's location is {commandReceived.Latitude}, {commandReceived.Longitude}";
+                        textMessage = $"Your bike's location is {commandReceived.Latitude}, {commandReceived.Longitude}";
                         break;
                     case Command.SET_TAMPER:
-                        textMessage = $"ALERT! Your device is being tampered with. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
+                        textMessage = $"ALERT! Your bike is being tampered with. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
                         break;
 
                     case Command.SET_THEFT:
-                        textMessage = $"THEFT! Your device has been tampered with for the last 15 seconds, it might be stolen. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
+                        textMessage = $"THEFT! Your device has been tampered with for the last 15 seconds, " +
+                            $"it might be stolen. Location {commandReceived.Latitude}, {commandReceived.Longitude}. " +
+                            $"Please open the dashboard at https://trackerhookweb.azurewebsites.net/tracker/{commandReceived.TrackerId} to track the location of your bike.";
+                        break;
+
+                    case Command.SET_INACTIVITY:
+                        textMessage = $"CANCELLED! Your bike has stopped moving. Location {commandReceived.Latitude}, {commandReceived.Longitude}";
                         break;
 
                     default:
@@ -187,15 +193,15 @@ namespace TrackerHook.API.Controllers
         private void SendTextMessage(string phoneNumber, string messageText)
         {
             // Find your Account Sid and Auth Token at twilio.com/console
-            const string accountSid = "ACfcc6c7984be14c54414ae757245fe958";
-            const string authToken = "52652fda5d5b996ccbed5f4e2534d588";
+            const string accountSid = "ACf2349865b9afb9601342ae0c1e06c079";
+            const string authToken = "377b691b41308c18791e9309da2984dd";
 
             TwilioClient.Init(accountSid, authToken);
 
             var to = new PhoneNumber(phoneNumber);
             var message = MessageResource.Create(
                 to,
-                from: new PhoneNumber("+441173257381"),
+                from: new PhoneNumber("+441158245887"),
                 body: messageText);
 
             Console.WriteLine(message.Sid);
