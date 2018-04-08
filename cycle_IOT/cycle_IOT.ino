@@ -27,7 +27,7 @@ int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
 //unsigned long previousmillis = 0;
 unsigned long alertMillis = 0;
-long interval = 10;
+long interval = 5;
 bool isInitialLocationSet = false;
 bool isAlertMode = false;
 bool isOverrideAlertMode = false;
@@ -183,8 +183,9 @@ void get_accel()
   }
   else
   {
-    if ((isAlertMode || isTheftMode) && !isNotifiedOfInactivity)
+    if ((isAlertMode || isTheftMode) && (millis() / 1000) - alertMillis > interval + 5 && !isNotifiedOfInactivity)
     {
+      Serial.println("Bike stopped moving");
       getGPSData(4);
       char *data = locationDataCopy;
       SendSMS(phoneNumber, data);
