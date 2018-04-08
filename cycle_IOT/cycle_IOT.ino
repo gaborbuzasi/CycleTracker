@@ -12,6 +12,7 @@
 #define SITE_URL "index.hu"
 #define LOCATION_ARR_SIZE 24
 #define RECEIVED_FROM_NUM_ARR_SIZE 20
+#define ACCEL_TRESHOLD 50
 
 MPU6050 accelgyro;
 LGPRSClient client;
@@ -19,11 +20,15 @@ gpsSentenceInfoStruct info;
 char gpsBuffer[256];
 char batteryBuffer[256];
 char* phoneNumber = "+441173257381";
+char* smstext = "";
 int16_t ax, ay, az;
 float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
+unsigned long previousmillis = 0;
+long interval = 1000;
 bool isInitialLocationSet = false;
 bool isAlertMode = true;
 bool isOverrideAlertMode = false;
+bool theftmode = false;
 
 double latitude = 0.00;
 double longitude = 0.00;
@@ -152,6 +157,7 @@ void checkForAvailableSms()
 
 void get_accel()
 {
+  unsigned long currentmillis = millis();
   accelgyro.getAcceleration(&ax, &ay, &az);
   accelx = ax / 100;
   accely = ay / 100;
@@ -169,15 +175,14 @@ void get_accel()
   //Serial.print(accelx); Serial.print("\t");
   //Serial.print(accely); Serial.print("\t");
   //Serial.print(accelz); Serial.print("\n");
-  delay(10);
-}
-
-void send_alertsms()
-{
-  if (diffx > 50 or diffy 50)
+  if (diffx >= ACCEL_TRESHOLD or diffy >= ACCEL_TRESHOLD)
   {
-    
-  }
+    if(currentMillis - previousMillis > interval) 
+    {
+      isAlertMode = true;
+      smstext = "2;YOUR BIKE IS BEING TAMPERED WITH!!"
+    }
+  } else isAlertMode = false;
 }
 
 void getGPSData(int command)
