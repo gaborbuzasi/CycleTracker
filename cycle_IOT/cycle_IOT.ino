@@ -183,8 +183,9 @@ void get_accel()
   }
   else
   {
-    if ((isAlertMode || isTheftMode) && (millis() / 1000) - alerMillis > interval + 15 && !isNotifiedOfInactivity)
+    if ((isAlertMode || isTheftMode) && (millis() / 1000) - alertMillis > interval + 5 && !isNotifiedOfInactivity)
     {
+      Serial.println("Bike stopped moving");
       getGPSData(4);
       char *data = locationDataCopy;
       SendSMS(phoneNumber, data);
