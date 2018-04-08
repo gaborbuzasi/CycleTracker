@@ -34,6 +34,7 @@ namespace TrackerHook.API.Controllers
         public TwiMLResult Index(TwilioSmsHookModel twilioSmsHookModel)
         {
             var body = twilioSmsHookModel.Body;
+            var receivedFrom = twilioSmsHookModel.From;
             Debug.WriteLine($"Message received {body}");
 
             try
@@ -63,17 +64,28 @@ namespace TrackerHook.API.Controllers
                 }
                 else if (body.ToLower().Contains("register"))
                 {
-                    return RegisterDevice(body);
+                    return RegisterDevice(twilioSmsHookModel);
                 }
 
-                var commandReceived = SmsParser.ParseSmsBody(twilioSmsHookModel.Body);
+                var commandReceived = SmsParser.ParseSmsBody(body);
+                commandReceived.TrackerId = _db.Trackers.First(x => x.DevicePhoneNumber == receivedFrom).Id;
 
                 switch (commandReceived.CommandId)
                 {
                     case Command.SET_INITIAL_STATE:
-                        return SendMessagingResponse("OK");
+                        if (SetInitialDeviceLocation(commandReceived) > 0)
+                        {
+                            var ownerPhoneNumber = _db.Trackers.FirstOrDefault(x => x.DevicePhoneNumber == receivedFrom)?.OwnerPhoneNumber;
+                            SendTextMessage(ownerPhoneNumber, "Initial location set.");
+                            return SendMessagingResponse("OK");
+                        }
+                            
+                        else
+                            return SendMessagingResponse("ERROR");
+                        
                     case Command.SET_LOCATION:
                         return SendMessagingResponse("OK");
+
                     default:
                         return SendMessagingResponse("Sorry, what did you mean?");
                 }
@@ -90,12 +102,42 @@ namespace TrackerHook.API.Controllers
             }
         }
 
-        private TwiMLResult RegisterDevice(string body)
+        private int SetInitialDeviceLocation(TrackerModel command)
+        {
+            int returnValue = 0;
+            try
+            {
+                _db.TrackerEvents.Add(new TrackerEvent
+                {
+                    IsAlert = false,
+                    Latitude = double.Parse(command.Latitude),
+                    Longitude = double.Parse(command.Longitude),
+                    SatellitePrecision = int.Parse(command.SatellitePrecision),
+                    Time = DateTime.Now,
+                    TrackerId = command.TrackerId
+                });
+                returnValue = _db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                _db.Logs.Add(new Log
+                {
+                    Error = ex.Message,
+                    Time = DateTime.Now
+                });
+                _db.SaveChanges();
+            }
+
+            return returnValue;
+        }
+
+        private TwiMLResult RegisterDevice(TwilioSmsHookModel hookModel)
         {
             var response = new MessagingResponse();
-            var data = body.Split(' ');
+            var data = hookModel.Body.Split(' ');
             var devicePhoneNumber = data[1].Trim();
             var deviceNickName = data[2].Trim().ToLower();
+            var ownerPhoneNumber = hookModel.From;
 
             if (_db.Trackers.Any(x => x.DeviceNickName == deviceNickName))
             {
@@ -107,6 +149,7 @@ namespace TrackerHook.API.Controllers
             {
                 DeviceNickName = deviceNickName,
                 DevicePhoneNumber = devicePhoneNumber,
+                OwnerPhoneNumber = ownerPhoneNumber
             });
 
             _db.SaveChanges();
@@ -160,6 +203,8 @@ namespace TrackerHook.API.Controllers
                     client.BaseAddress = new Uri("https://mokanix.io/v1/assets/8944501101188633318/sms");
                     client.DefaultRequestHeaders.Add("X-API-KEY", "t-c4d088c8-5dca-4cac-9fbb-8f7e507909a8");
                     var response = client.PostAsJsonAsync("https://mokanix.io/v1/assets/8944501101188633318/sms", sms).Result;
+                    Debug.WriteLine(response);
+
                     if (response.IsSuccessStatusCode)
                     {
                         Console.Write("Success");

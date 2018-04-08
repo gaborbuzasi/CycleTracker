@@ -11,9 +11,10 @@ using TrackerHook;
 namespace TrackerHook.Migrations
 {
     [DbContext(typeof(TrackerContext))]
-    partial class TrackerContextModelSnapshot : ModelSnapshot
+    [Migration("20180407215405_addedSatellitePrecision")]
+    partial class addedSatellitePrecision
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -42,8 +43,6 @@ namespace TrackerHook.Migrations
                     b.Property<string>("DeviceNickName");
 
                     b.Property<string>("DevicePhoneNumber");
-
-                    b.Property<string>("OwnerPhoneNumber");
 
                     b.HasKey("Id");
 

@@ -15,7 +15,9 @@ namespace TrackerHook.API.Helpers
             var model = new TrackerModel
             {
                 CommandId = (Command)Enum.Parse(typeof(Command), data[0]),
-                Message = data[1]
+                Latitude = data[1],
+                Longitude = data[2],
+                SatellitePrecision = data[3]
             };
 
             return model;

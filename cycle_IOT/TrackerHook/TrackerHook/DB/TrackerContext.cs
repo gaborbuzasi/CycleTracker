@@ -27,6 +27,7 @@ namespace TrackerHook
         public DateTime Time { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
+        public int SatellitePrecision { get; set; }
         public bool IsAlert { get; set; }
 
         public Tracker Tracker { get; set; }
@@ -38,6 +39,7 @@ namespace TrackerHook
         public int Id { get; set; }
         public string DevicePhoneNumber { get; set; }
         public string DeviceNickName { get; set; }
+        public string OwnerPhoneNumber { get; set; }
 
         public ICollection<TrackerEvent> TrackerEvents { get; set; }
     }

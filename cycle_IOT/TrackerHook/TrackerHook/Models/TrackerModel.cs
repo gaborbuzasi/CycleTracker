@@ -8,9 +8,11 @@ namespace TrackerHook.API.Models
     public class TrackerModel
     {
         public Command CommandId { get; set; }
-        public string Message { get; set; }
+        public string Latitude { get; set; }
+        public string Longitude { get; set; }
+        public string SatellitePrecision { get; set; }
+        public int TrackerId { get; set; }
     }
-
     public enum Command
     {
         SET_INITIAL_STATE,

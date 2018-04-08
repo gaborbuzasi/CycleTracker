@@ -8,16 +8,35 @@
 #include "Wire.h"
 
 #define SITE_URL "index.hu"
+#define LOCATION_ARR_SIZE 24
+#define RECEIVED_FROM_NUM_ARR_SIZE 20
 
 MPU6050 accelgyro;
 LGPRSClient client;
 gpsSentenceInfoStruct info;
 char gpsBuffer[256];
 char batteryBuffer[256];
-const char *phoneNumber = "+447941573861";
+char* phoneNumber = "+441173257381";
 int16_t ax, ay, az;
-float accelx, accely/*,accelz*/,axprev,ayprev/*,azprev*/,diffx,diffy/*,diffz*/;
+float accelx, accely/*,accelz*/, axprev, ayprev/*,azprev*/, diffx, diffy/*,diffz*/;
+bool isInitialLocationSet = false;
 
+double latitude = 0.00;
+double longitude = 0.00;
+float altitude = 0.00;
+float dop = 100.00; //dilution of precision
+float geoid = 0.00;
+float k_speed = 0.00, m_speed = 0.00; //speed in knots and speed in m/s
+float track_angle = 0.00;
+int fix = 0;
+int hour = 0, minute = 0, second = 0;
+int sat_num = 0; //number of visible satellites
+int day = 0, month = 0, year = 0;
+String time_format = "00:00:00", date_format = "00:00:0000";
+String lat_format = "0.00000", lon_format = "0.00000";
+int pause = 3000; //time in milliseconds between two logs
+char locationDataCopy[LOCATION_ARR_SIZE];
+char smsReceivedFromNumberBuffer[RECEIVED_FROM_NUM_ARR_SIZE];
 
 void setup()
 {
@@ -25,12 +44,12 @@ void setup()
   Serial.begin(115200);
 
   // initialize accelerometer
-    Serial.println("Initializing Accelerometer...");
-    accelgyro.initialize();
+  Serial.println("Initializing Accelerometer...");
+  accelgyro.initialize();
 
-    // verify connection
-    Serial.println("Testing Accelerometer...");
-    Serial.println(accelgyro.testConnection() ? "Accelerometer connection successful" : "Accelerometer connection failed");
+  // verify connection
+  Serial.println("Testing Accelerometer...");
+  Serial.println(accelgyro.testConnection() ? "Accelerometer connection successful" : "Accelerometer connection failed");
 
   Serial.println("Starting SMS service");
   while (!LSMS.ready()) // Wait for the sim to initialize
@@ -52,51 +71,124 @@ void setup()
 
 void loop()
 {
+
+
   // put your main code here, to run repeatedly:
+  if (!isInitialLocationSet)
+  {
+    getGPSData(0);
+    char *data = locationDataCopy;
+    SendSMS(phoneNumber, data);
 
-  getGPSData();
+    isInitialLocationSet = true;
+  }
+
+  checkForAvailableSms();
   delay(1000);
 
-  get_accel();
+  //get_accel();
 
-  DoGETRequest();
-  delay(1000);
+  //DoGETRequest();
 }
 
-void get_accel() 
- {
-   accelgyro.getAcceleration(&ax, &ay, &az);
-   accelx = ax / 100;
-   accely = ay / 100;
-   //accelz = az / 100;
-   diffx = abs(((axprev - accelx) / axprev) * 100);
-   diffy = abs(((ayprev - accely) / ayprev) * 100);
-   //diffz = abs(((azprev - accelz) / azprev) * 100);
-   //Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
-   //Serial.print("y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
-   //Serial.print("z AXIS DIFFERENCE : \t"); Serial.print(diffz);Serial.print("%\n");
-   axprev = accelx;
-   ayprev = accely;
-   //azprev = accelz;
-   //Serial.print("accelerometer" "\t");
-   //Serial.print(accelx); Serial.print("\t");
-   //Serial.print(accely); Serial.print("\t");
-   //Serial.print(accelz); Serial.print("\n");
-   delay(10);
- }
-
-void getGPSData()
+void checkForAvailableSms()
 {
-  Serial.println("Getting LGPS Data");
-  LGPS.getData(&info);
-  Serial.println((char *)info.GPGGA);
-  parseGPGGA((const char *)info.GPGGA);
+  if (LSMS.available())
+  {
+    Serial.println("New SMS messages are available");
+    LSMS.remoteNumber(smsReceivedFromNumberBuffer, RECEIVED_FROM_NUM_ARR_SIZE);
+    Serial.print("Number: ");
+    Serial.println(smsReceivedFromNumberBuffer);
+
+    Serial.print("Content: "); // display Content part
+
+    int c;
+    while (true)
+    {
+      c = LSMS.read(); // message content (one byte at a time)
+      if (c < 0)
+        break; // enf of message content
+    }
+    Serial.println();
+
+    LSMS.flush();
+  }
+  else 
+  {
+    Serial.println("No SMS found.");
+  }
+}
+
+void get_accel()
+{
+  accelgyro.getAcceleration(&ax, &ay, &az);
+  accelx = ax / 100;
+  accely = ay / 100;
+  //accelz = az / 100;
+  diffx = abs(((axprev - accelx) / axprev) * 100);
+  diffy = abs(((ayprev - accely) / ayprev) * 100);
+  //diffz = abs(((azprev - accelz) / azprev) * 100);
+  //Serial.print("X AXIS DIFFERENCE : \t"); Serial.print(diffx);Serial.print("%\n");
+  //Serial.print("y AXIS DIFFERENCE : \t"); Serial.print(diffy);Serial.print("%\n");
+  //Serial.print("z AXIS DIFFERENCE : \t"); Serial.print(diffz);Serial.print("%\n");
+  axprev = accelx;
+  ayprev = accely;
+  //azprev = accelz;
+  //Serial.print("accelerometer" "\t");
+  //Serial.print(accelx); Serial.print("\t");
+  //Serial.print(accely); Serial.print("\t");
+  //Serial.print(accelz); Serial.print("\n");
+  delay(10);
+}
+
+void getGPSData(int command)
+{
+  int satellitePrecision = 0;
+  satellitePrecision = getData(&info);
+
+  if (satellitePrecision >= 0)
+  {
+    String str = "";
+    str += command;
+    str += ";";
+    //    str += date_format;
+    //    str += ",";
+    //    str += time_format;
+    //    str += ",";
+    str += lat_format;
+    str += ";";
+    str += lon_format;
+    str += ";";
+    str += satellitePrecision;
+    //    str += altitude;
+    //    str += ",";
+    //    str += dop;
+    //    str += ",";
+    //    str += geoid;
+    //    str += ",";
+    //    str += track_angle;
+    //    str += ",";
+    //    str += m_speed;
+    //    str += ",";
+    //    str += k_speed;
+    //    str += ",";
+    //    str += fix;
+    //    str += ",";
+    //    str += sat_num;
+    Serial.println(str);
+
+    str.toCharArray(locationDataCopy, LOCATION_ARR_SIZE);
+  }
 }
 
 void SendSMS(char *number, char *message)
 {
   LSMS.beginSMS(number);
   LSMS.print(message); // Prepare message variable to be sent by LSMS
+  Serial.print("sending sms to: ");
+  Serial.println(number);
+  Serial.print("Content: ");
+  Serial.println(message);
 
   if (LSMS.endSMS()) // If so, send the SMS
   {
@@ -150,102 +242,101 @@ void DoGETRequest()
   }
 }
 
-static unsigned char getComma(unsigned char num, const char *str)
+float convert(String str, boolean dir)
 {
-  unsigned char i, j = 0;
-  int len = strlen(str);
-  for (i = 0; i < len; i++)
+  double mm, dd;
+  int point = str.indexOf('.');
+  dd = str.substring(0, (point - 2)).toFloat();
+  mm = str.substring(point - 2).toFloat() / 60.00;
+  return (dir ? -1 : 1) * (dd + mm);
+}
+
+int getData(gpsSentenceInfoStruct* info)
+{
+  Serial.println("Collecting GPS data.");
+  LGPS.getData(info);
+  Serial.println((char*)info->GPGGA);
+  if (info->GPGGA[0] == '$')
   {
-    if (str[i] == ',')
-      j++;
-    if (j == num)
-      return i + 1;
-  }
-  return 0;
-}
+    Serial.print("Parsing GGA data....");
+    String str = (char*)(info->GPGGA);
+    str = str.substring(str.indexOf(',') + 1);
+    hour = str.substring(0, 2).toInt();
+    minute = str.substring(2, 4).toInt();
+    second = str.substring(4, 6).toInt();
+    time_format = "";
+    time_format += hour;
+    time_format += ":";
+    time_format += minute;
+    time_format += ":";
+    time_format += second;
+    str = str.substring(str.indexOf(',') + 1);
+    latitude = convert(str.substring(0, str.indexOf(',')), str.charAt(str.indexOf(',') + 1) == 'S');
+    int val = latitude * 1000000;
+    String s = String(val);
+    lat_format = s.substring(0, (abs(latitude) < 100) ? 2 : 3);
+    lat_format += '.';
+    lat_format += s.substring((abs(latitude) < 100) ? 2 : 3);
+    str = str.substring(str.indexOf(',') + 3);
+    longitude = convert(str.substring(0, str.indexOf(',')), str.charAt(str.indexOf(',') + 1) == 'W');
+    val = longitude * 1000000;
+    s = String(val);
+    lon_format = s.substring(0, (abs(longitude) < 100) ? 2 : 3);
+    lon_format += '.';
+    lon_format += s.substring((abs(longitude) < 100) ? 2 : 3);
 
-static double getDoubleNumber(const char *s)
-{
-  char buf[10];
-  unsigned char i;
-  double rev;
+    str = str.substring(str.indexOf(',') + 3);
+    fix = str.charAt(0) - 48;
+    str = str.substring(2);
+    sat_num = str.substring(0, 2).toInt();
+    str = str.substring(3);
+    dop = str.substring(0, str.indexOf(',')).toFloat();
+    str = str.substring(str.indexOf(',') + 1);
+    altitude = str.substring(0, str.indexOf(',')).toFloat();
+    str = str.substring(str.indexOf(',') + 3);
+    geoid = str.substring(0, str.indexOf(',')).toFloat();
+    Serial.println("done.");
 
-  i = getComma(1, s);
-  i = i - 1;
-  strncpy(buf, s, i);
-  buf[i] = 0;
-  rev = atof(buf);
-  return rev;
-}
+    if (info->GPRMC[0] == '$')
+    {
+      Serial.print("Parsing RMC data....");
+      str = (char*)(info->GPRMC);
+      int comma = 0;
+      for (int i = 0; i < 60; ++i)
+      {
+        if (info->GPRMC[i] == ',')
+        {
+          comma++;
+          if (comma == 7)
+          {
+            comma = i + 1;
+            break;
+          }
+        }
+      }
 
-static double getIntNumber(const char *s)
-{
-  char buf[10];
-  unsigned char i;
-  double rev;
-
-  i = getComma(1, s);
-  i = i - 1;
-  strncpy(buf, s, i);
-  buf[i] = 0;
-  rev = atoi(buf);
-  return rev;
-}
-
-void parseGPGGA(const char *GPGGAstr)
-{
-  /* Refer to http://www.gpsinformation.org/dale/nmea.htm#GGA
-     Sample data: $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
-     Where:
-      GGA          Global Positioning System Fix Data
-      123519       Fix taken at 12:35:19 UTC
-      4807.038,N   Latitude 48 deg 07.038' N
-      01131.000,E  Longitude 11 deg 31.000' E
-      1            Fix quality: 0 = invalid
-                                1 = GPS fix (SPS)
-                                2 = DGPS fix
-                                3 = PPS fix
-                                4 = Real Time Kinematic
-                                5 = Float RTK
-                                6 = estimated (dead reckoning) (2.3 feature)
-                                7 = Manual input mode
-                                8 = Simulation mode
-      08           Number of satellites being tracked
-      0.9          Horizontal dilution of position
-      545.4,M      Altitude, Meters, above mean sea level
-      46.9,M       Height of geoid (mean sea level) above WGS84
-                       ellipsoid
-      (empty field) time in seconds since last DGPS update
-      (empty field) DGPS station ID number
-   *  *47          the checksum data, always begins with *
-  */
-  double latitude;
-  double longitude;
-  int tmp, hour, minute, second, num;
-  if (GPGGAstr[0] == '$')
-  {
-    tmp = getComma(1, GPGGAstr);
-    hour = (GPGGAstr[tmp + 0] - '0') * 10 + (GPGGAstr[tmp + 1] - '0');
-    minute = (GPGGAstr[tmp + 2] - '0') * 10 + (GPGGAstr[tmp + 3] - '0');
-    second = (GPGGAstr[tmp + 4] - '0') * 10 + (GPGGAstr[tmp + 5] - '0');
-
-    sprintf(gpsBuffer, "UTC timer %2d-%2d-%2d", hour, minute, second);
-    Serial.println(gpsBuffer);
-
-    tmp = getComma(2, GPGGAstr);
-    latitude = getDoubleNumber(&GPGGAstr[tmp]);
-    tmp = getComma(4, GPGGAstr);
-    longitude = getDoubleNumber(&GPGGAstr[tmp]);
-    sprintf(gpsBuffer, "latitude = %10.4f, longitude = %10.4f", latitude, longitude);
-    Serial.println(gpsBuffer);
-
-    tmp = getComma(7, GPGGAstr);
-    num = getIntNumber(&GPGGAstr[tmp]);
-    sprintf(gpsBuffer, "satellites number = %d", num);
-    Serial.println(gpsBuffer);
+      str = str.substring(comma);
+      k_speed = str.substring(0, str.indexOf(',')).toFloat();
+      m_speed = k_speed * 0.514;
+      str = str.substring(str.indexOf(',') + 1);
+      track_angle = str.substring(0, str.indexOf(',')).toFloat();
+      str = str.substring(str.indexOf(',') + 1);
+      day = str.substring(0, 2).toInt();
+      month = str.substring(2, 4).toInt();
+      year = str.substring(4, 6).toInt();
+      date_format = "20";
+      date_format += year;
+      date_format += "-";
+      date_format += month;
+      date_format += "-";
+      date_format += day;
+      Serial.println("done.");
+      return sat_num;
+    }
   }
   else
   {
-    Serial.println("Not get data");
+    Serial.println("No GGA data");
   }
+  return 0;
 }
